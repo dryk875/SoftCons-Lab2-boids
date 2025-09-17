@@ -1,44 +1,55 @@
 package boids
 import cs214.{Vector2, BoidSequence}
 
-def boidsWithinRadius(thisBoid: Boid, boids: BoidSequence, radius: Float): BoidSequence =
-  boids // TODO: modify this
+def isInRadius(boid: Boid, otherBoids: BoidSequence, radius: Float): BoidSequence =
+  otherBoids.filter(b => boid.position.distanceTo(b.position) < radius)
 
-/** Force pushing boids away from each other */
-def avoidanceForce(thisBoid: Boid, boidsWithinAvoidanceRadius: BoidSequence): cs214.Vector2 =
-  cs214.Vector2.Zero // TODO: modify this
+def avoidance(boid: Boid, otherBoids: BoidSequence): Vector2 =
+  otherBoids
+    .filter(b => boid.position != b.position)
+    .mapVector2(b => (boid.position - b.position).normalized / boid.position.distanceTo(b.position))
+    .sum
 
-/** Force pushing boids towards each other */
-def cohesionForce(thisBoid: Boid, boidsWithinPerceptionRadius: BoidSequence): cs214.Vector2 =
-  cs214.Vector2.Zero // TODO: modify this
+def cohesion(boid: Boid, otherBoids: BoidSequence): Vector2 = 
+  val nB = otherBoids.length
+  if nB == 0 then Vector2.Zero
+  else otherBoids.mapVector2(b => b.position).sum / nB.toFloat - boid.position
 
-/** Force pushing boids to align with the direction of their neighbors */
-def alignmentForce(thisBoid: Boid, boidsWithinPerceptionRadius: BoidSequence): cs214.Vector2 =
-  cs214.Vector2.Zero // TODO: modify this
+def alignment(boid: Boid, otherBoids: BoidSequence): Vector2 = 
+  val nB = otherBoids.length
+  if nB == 0 then Vector2.Zero
+  else otherBoids.mapVector2(b => b.velocity).sum / nB.toFloat - boid.velocity
 
-/** Force keeping boids within simulation bounds */
-def containmentForce(thisBoid: Boid, limits: BoundingBox): cs214.Vector2 =
-  cs214.Vector2.Zero // TODO: modify this
+def containmentX(boid: Boid, physics: Physics): Vector2 = 
+  if boid.position.x < physics.limits.xmin then Vector2.UnitRight
+  else if physics.limits.xmax < boid.position.x then Vector2.UnitLeft
+  else Vector2.Zero
 
-def totalForce(thisBoid: Boid, allBoids: BoidSequence, physics: Physics): Vector2 =
-  val withinPerceptionRadius = boidsWithinRadius(thisBoid, allBoids, physics.perceptionRadius)
-  val cohere = cohesionForce(thisBoid, withinPerceptionRadius)
-  val align = alignmentForce(thisBoid, withinPerceptionRadius)
-  val withinAvoidanceRadius = boidsWithinRadius(thisBoid, withinPerceptionRadius, physics.avoidanceRadius)
-  val avoid = avoidanceForce(thisBoid, withinAvoidanceRadius)
-  val contain = containmentForce(thisBoid, physics.limits)
-  val total =
-    avoid * physics.avoidanceWeight +
-      cohere * physics.cohesionWeight +
-      align * physics.alignmentWeight +
-      contain * physics.containmentWeight
-  total
+def containmentY(boid: Boid, physics: Physics): Vector2 = 
+  if boid.position.y < physics.limits.ymin then Vector2.UnitDown
+  else if physics.limits.ymax < boid.position.y then Vector2.UnitUp
+  else Vector2.Zero
 
-/** Returns the given boid, one tick later */
-def tickBoid(thisBoid: Boid, allBoids: BoidSequence, physics: Physics): Boid =
-  val acceleration = totalForce(thisBoid, allBoids, physics)
-  Boid(thisBoid.position, thisBoid.velocity) // TODO: modify this
+def containment(boid: Boid, physics: Physics): Vector2 = 
+  containmentX(boid, physics) + containmentY(boid, physics)
+
+def acceleration(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector2 = 
+  avoidance(boid, isInRadius(boid, otherBoids, physics.avoidanceRadius)) * physics.avoidanceWeight
+  + cohesion(boid, isInRadius(boid, otherBoids, physics.perceptionRadius)) * physics.cohesionWeight
+  + alignment(boid, isInRadius(boid, otherBoids, physics.perceptionRadius)) * physics.alignmentWeight
+  + containment(boid, physics) * physics.containmentWeight
+
+def velocity(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector2 = 
+  val calVelo = boid.velocity + acceleration(boid, otherBoids, physics)
+  if calVelo.norm < physics.minimumSpeed then calVelo / calVelo.norm  * physics.minimumSpeed 
+  else if calVelo.norm > physics.maximumSpeed then calVelo / calVelo.norm * physics.maximumSpeed 
+  else calVelo
+
+def position(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector2 = 
+  boid.position + boid.velocity
 
 /** Returns all the given boids, one tick later */
 def tickWorld(allBoids: BoidSequence, physics: Physics): BoidSequence =
-  allBoids // TODO: modify this
+  allBoids.mapBoid(boid => 
+    val otherBoids = allBoids.filter(b => !b.equals(boid))
+    boid.copy(position(boid, otherBoids, physics), velocity(boid, otherBoids, physics)))
