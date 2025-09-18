@@ -39,17 +39,17 @@ def acceleration(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector
   + alignment(boid, isInRadius(boid, otherBoids, physics.perceptionRadius)) * physics.alignmentWeight
   + containment(boid, physics) * physics.containmentWeight
 
-def velocity(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector2 = 
+def newVelocity(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector2 = 
   val calVelo = boid.velocity + acceleration(boid, otherBoids, physics)
   if calVelo.norm < physics.minimumSpeed then calVelo / calVelo.norm  * physics.minimumSpeed 
   else if calVelo.norm > physics.maximumSpeed then calVelo / calVelo.norm * physics.maximumSpeed 
   else calVelo
 
-def position(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector2 = 
+def newPosition(boid: Boid, otherBoids: BoidSequence, physics: Physics): Vector2 = 
   boid.position + boid.velocity
 
 /** Returns all the given boids, one tick later */
 def tickWorld(allBoids: BoidSequence, physics: Physics): BoidSequence =
   allBoids.mapBoid(boid => 
     val otherBoids = allBoids.filter(b => !b.equals(boid))
-    boid.copy(position(boid, otherBoids, physics), velocity(boid, otherBoids, physics)))
+    boid.copy(newPosition(boid, otherBoids, physics), newVelocity(boid, otherBoids, physics)))
